@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management System | CRUD Application</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>User Management Dashboard</h1>
+        <p>Demonstration: Node.js, Express, PostgreSQL, and Docker</p>
+    </header>
+
+    <div id="alertBox" class="alert"></div>
+
+    <!-- Form Section -->
+    <section class="card">
+        <h2 id="formTitle" style="font-size: 1.1rem; margin-bottom: 1rem;">Add New User</h2>
+        <form id="userForm" class="form-grid">
+            <input type="hidden" id="userId">
+            <div class="field">
+                <label for="fname">First Name</label>
+                <input type="text" id="fname" placeholder="e.g. Ada" required>
+            </div>
+            <div class="field">
+                <label for="lname">Last Name</label>
+                <input type="text" id="lname" placeholder="e.g. Lovelace" required>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" id="btnSubmit">Save</button>
+                <button type="button" id="btnCancel" class="btn-secondary" style="display: none;">Cancel</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Table Section -->
+    <section class="card">
+        <h2 style="font-size: 1.1rem;">Registered Users</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 80px;">ID</th>
+                    <th>Full Name</th>
+                    <th style="width: 170px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="userTableBody">
+                <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Loading users...</td></tr>
+            </tbody>
+        </table>
+    </section>
+</div>
+
+<script>
+    const API_URL = '/api/users';
+    const form = document.getElementById('userForm');
+    const userIdInput = document.getElementById('userId');
+    const fnameInput = document.getElementById('fname');
+    const lnameInput = document.getElementById('lname');
+    const formTitle = document.getElementById('formTitle');
+    const btnCancel = document.getElementById('btnCancel');
+    const tableBody = document.getElementById('userTableBody');
+    const alertBox = document.getElementById('alertBox');
+
+    function notify(message, type = 'success') {
+        alertBox.className = `alert alert-${type}`;
+        alertBox.textContent = message;
+        alertBox.style.display = 'block';
+        setTimeout(() => { alertBox.style.display = 'none'; }, 3000);
+    }
+
+    async function fetchUsers() {
+        try {
+            const res = await fetch(API_URL);
+            if (!res.ok) throw new Error('Failed to retrieve user list');
+            const users = await res.json();
+            renderTable(users);
+        } catch (err) {
+            tableBody.innerHTML = `<tr><td colspan="3" style="color: var(--danger); text-align: center;">Error loading data.</td></tr>`;
+        }
+    }
+
+    function renderTable(users) {
+        if (!users.length) {
+            tableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No users found.</td></tr>`;
+            return;
+        }
+
+        tableBody.innerHTML = users.map(user => `
+            <tr>
+                <td>#${user.id}</td>
+                <td>${user.fname} ${user.lname}</td>
+                <td>
+                    <div class="actions">
+                        <button class="btn-sm" onclick="startEdit(${user.id}, '${user.fname}', '${user.lname}')">Edit</button>
+                        <button class="btn-sm btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = userIdInput.value;
+        const payload = {
+            fname: fnameInput.value.trim(),
+            lname: lnameInput.value.trim()
+        };
+
+        const isEditing = Boolean(id);
+        const url = isEditing ? `${API_URL}/${id}` : API_URL;
+        const method = isEditing ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error('Operation failed');
+
+            resetForm();
+            notify(isEditing ? 'User updated successfully!' : 'User created successfully!');
+            fetchUsers();
+        } catch (err) {
+            notify(err.message, 'error');
+        }
+    });
+
+    window.startEdit = function(id, fname, lname) {
+        userIdInput.value = id;
+        fnameInput.value = fname;
+        lnameInput.value = lname;
+        formTitle.textContent = `Edit User #${id}`;
+        btnCancel.style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    btnCancel.addEventListener('click', resetForm);
+
+    function resetForm() {
+        userIdInput.value = '';
+        form.reset();
+        formTitle.textContent = 'Add New User';
+        btnCancel.style.display = 'none';
+    }
+
+    window.deleteUser = async function(id) {
+        if (!confirm(`Are you sure you want to delete user #${id}?`)) return;
+
+        try {
+            const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete user');
+            notify('User deleted successfully.');
+            fetchUsers();
+        } catch (err) {
+            notify(err.message, 'error');
+        }
+    };
+
+    fetchUsers();
+</script>
+</body>
+</html>
